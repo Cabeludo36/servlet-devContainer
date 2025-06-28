@@ -7,6 +7,7 @@
     <ul>
         <li><a href="SSR.jsp">SSR</a></li>
         <li><a href="ssrPessoa.jsp">SSR Pessoas</a></li>
+        <li><a href="csrPessoa.html">CSR Pessoas</a></li>
     </ul>
 </body>
 </html>

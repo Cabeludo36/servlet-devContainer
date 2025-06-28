@@ -6,23 +6,24 @@
     <title>Document</title>
 </head>
 <body>
+    <a href="index.jsp"><-- Back to Index</a>
     <h1>Pessoas CSR</h1>
-    <ul id="pessoas">
-        
-    </ul>
+    <div id="pessoas">
+        Loading...
+    </div>
+    
     <script>
         fetch('api/pessoa')
             .then(response => response.json())
             .then(data => {
                 const pessoasDiv = document.getElementById('pessoas');
+                const pessoasUl = document.createElement("ul");
                 data.forEach(pessoa => {
                     const li = document.createElement('li');
-                    li.className = 'blue-text';
-                    li.innerHTML = `Name: ${pessoa.nome} - Age: ${pessoa.idade} - Can Drink: ${pessoa.podeBeber ? 'Yes' : 'No'}`;
-                    pessoasDiv.appendChild(li);
+                    li.innerText = `Name: ${pessoa.nome} - Age: ${pessoa.idade} - Can Drink: ${pessoa.podeBeber ? 'Yes' : 'No'}`;
+                    pessoasUl.appendChild(li);
                 });
-
-
+                pessoasDiv.innerHTML = pessoasUl.getHTML();
             });
     </script>
 </body>
