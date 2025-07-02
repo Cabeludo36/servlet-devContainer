@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+
+<body>
+    <a href="index.jsp">Back to Index</a>
+    <!-- quebra linha -->
+    <br>
+    <h1>Create Person</h1>
+    <form onsubmit="adicionarPessoa(); return false;">
+        <label for="nome">Name:</label>
+        <input type="text" id="nome" name="nome" required>
+        <br>
+        <label for="idade">Age:</label>
+        <input type="number" id="idade" name="idade" required>
+        <br>
+        <button type="submit">Create</button>
+    </form>
+    <br>
+    <div id="mensagem"></div>
+    <!-- botão de refresh -->
+    <button type="button" onclick="buscarPessoas();">Refresh</button>
+    <h1>Pessoas CSR</h1>
+    <div id="pessoas">
+        Loading...
+    </div>
+
+    <script>
+        function buscarPessoas() {
+            const pessoasDiv = document.getElementById('pessoas');
+            pessoasDiv.innerHTML = 'Loading...';
+            fetch('api/pessoa')
+                .then(response => response.json())
+                .then(data => {
+                    const pessoasUl = document.createElement("ul");
+                    data.forEach(pessoa => {
+                        const li = document.createElement('li');
+                        li.innerHTML = `
+                            <div id="pessoa-${pessoa.id}">
+                                Name: <input type="text" name="nome" value="${pessoa.nome}" /> - 
+                                Age: <input type="number" name="idade" value="${pessoa.idade}" /> - 
+                                Can Drink: ${pessoa.podeBeber ? 'Yes' : 'No'} - 
+                                Lucky Number: ${pessoa.numeroSorte} 
+                                <button type="button" onclick="atualizarPessoa(${pessoa.id})">Update</button>
+                                <button type="button" onclick="removerPessoa(${pessoa.id})">X</button>
+                            </div>`;
+                        pessoasUl.appendChild(li);
+                    });
+                    pessoasDiv.innerHTML = pessoasUl.outerHTML;
+                });
+        }
+
+        // função pra adicionar uma pessoa
+        function adicionarPessoa() {
+            const nome = document.getElementById('nome').value;
+            const idade = document.getElementById('idade').value;
+            // envia uma requisição POST para o servidor
+            fetch('api/pessoa', {
+                method: 'POST', // diz que é POST
+                headers: {
+                    'Content-Type': 'application/json' // diz que o corpo da requisição é JSON
+                },
+                body: JSON.stringify({ nome: nome, idade: idade }) // converte o objeto para JSON
+            })
+            .then(response => {
+                // verifica se a resposta foi bem sucedida
+                if (response.status > 499) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                const mensagemDiv = document.getElementById('mensagem');
+                // exibe a mensagem de sucesso ou erro
+                mensagemDiv.innerHTML = data.message || 'Person added successfully!';
+                buscarPessoas(); // atualiza a lista de pessoas
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        // função para remover uma pessoa
+        function removerPessoa(id) {
+            fetch(`api/pessoa/${id}`, {
+                method: 'DELETE' // diz que é DELETE
+            })
+            .then(response => {
+                // verifica se a resposta foi bem sucedida
+                if (response.status > 499) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                const mensagemDiv = document.getElementById('mensagem');
+                // exibe a mensagem de sucesso ou erro
+                mensagemDiv.innerHTML = data.message || 'Person removed successfully!';
+                buscarPessoas(); // atualiza a lista de pessoas
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        // função para atualizar uma pessoa
+        function atualizarPessoa(id) {
+            // busca o seletor pelo id da div e os inputs de nome e idade
+            const nome = document.querySelector(`#pessoa-${id} input[name="nome"]`).value;
+            const idade = document.querySelector(`#pessoa-${id} input[name="idade"]`).value;
+            
+            fetch(`api/pessoa/${id}`, {
+                method: 'PUT', // diz que é PUT
+                headers: {
+                    'Content-Type': 'application/json' // diz que o corpo da requisição é JSON
+                },
+                body: JSON.stringify({ nome: nome, idade: idade }) // converte o objeto para JSON
+            })
+            .then(response => {
+                // verifica se a resposta foi bem sucedida
+                if (response.status > 499) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                const mensagemDiv = document.getElementById('mensagem');
+                // exibe a mensagem de sucesso ou erro
+                mensagemDiv.innerHTML = data.message || 'Person updated successfully!';
+                buscarPessoas(); // atualiza a lista de pessoas
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        buscarPessoas();
+
+    </script>
+</body>
+
+</html>
