@@ -9,18 +9,7 @@ import com.models.database.DatabaseConnection;
 
 public final class PessoaModel {
     private static final int DELAY = 2000; // 2 segundos
-    private static long idPessoaAtual = 3; // ID inicial para a próxima pessoa
 
-    // lista estática de pessoas
-    // inicializada com alguns dados de exemplo
-    // não irá mudar durante a execução do programa
-    private static List<PessoaDTO> pessoas = new ArrayList<PessoaDTO>() {
-        {
-            add(new PessoaDTO(1, "João", 30));
-            add(new PessoaDTO(2, "Maria", 25));
-            add(new PessoaDTO(3, "José", 40));
-        }
-    };
 
     // constructor privado para evitar instância
     private PessoaModel() {
@@ -36,20 +25,19 @@ public final class PessoaModel {
 
         String sql = """
             SELECT 
-                p.id,
-                p.nome,
-                p.idade
-            FROM 
+                 p.id
+                ,p.nome
+                ,p.idade
+            FROM
                 pessoa p
             ORDER BY
                 p.id DESC
             """;
-
-        // retorna pessoas
+        
         return DatabaseConnection.runQueryForList(sql, PessoaDTO.class);
     }
 
-    // retorna true se a adição for bem-sucedida
+    // retorna true se a adição afetou algo
     // delay para simular uma operação de longa duração
     public static boolean addPessoa(PessoaDTO pessoa) {
         try {
@@ -57,15 +45,19 @@ public final class PessoaModel {
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
-        // incrementa o ID atual
-        idPessoaAtual++;
-        // adiciona um ID único à pessoa
-        pessoa.setId(idPessoaAtual);
-        return pessoas.add(pessoa);
+        
+        String sql = """
+            INSERT INTO pessoa 
+            (nome, idade)
+            VALUES 
+            (?, ?)
+            """;
+
+        return DatabaseConnection.runCommand(sql, pessoa.getNome(), pessoa.getIdade()) > 0;
     }
 
     // remove uma pessoa da lista pelo ID
-    // retorna true se a remoção for bem-sucedida
+    // retorna true se a remoção afetou algo
     // delay para simular uma operação de longa duração
     public static boolean removePessoa(long id) {
         try {
@@ -74,12 +66,15 @@ public final class PessoaModel {
             e.printStackTrace();
         }
         
-        // busca a pessoa pelo ID e remove
-        return pessoas.removeIf(p -> p.getId() == id);
+        String sql = """
+            DELETE FROM pessoa 
+            WHERE id = ?
+            """;
+        return DatabaseConnection.runCommand(sql, id) > 0;
     }
 
     // atualiza uma pessoa na lista pelo ID
-    // retorna true se a atualização for bem-sucedida
+    // retorna true se a atualização afetou algo
     // delay para simular uma operação de longa duração
     public static boolean updatePessoa(long id, PessoaDTO pessoaAtualizada) {
         try {
@@ -89,14 +84,11 @@ public final class PessoaModel {
             return false;
         }
 
-        // busca a pessoa pelo ID e atualiza
-        Optional<PessoaDTO> pessoaOpt = pessoas.stream().filter(p -> p.getId() == id).findFirst();
-        if (pessoaOpt.isPresent()) {
-            PessoaDTO pessoa = pessoaOpt.get();
-            pessoa.setNome(pessoaAtualizada.getNome());
-            pessoa.setIdade(pessoaAtualizada.getIdade());
-            return true;
-        }
-        return false;
+        String sql = """
+            UPDATE pessoa 
+            SET nome = ?, idade = ?
+            WHERE id = ?
+            """;
+        return DatabaseConnection.runCommand(sql, pessoaAtualizada.getNome(), pessoaAtualizada.getIdade(), id) > 0;
     }
 }

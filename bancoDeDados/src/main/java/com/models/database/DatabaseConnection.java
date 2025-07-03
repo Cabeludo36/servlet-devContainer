@@ -1,9 +1,15 @@
 package com.models.database;
 
+import java.lang.reflect.Field;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 public final class DatabaseConnection {
@@ -34,6 +40,47 @@ public final class DatabaseConnection {
     }
 
     /**
+     * Obtém os nomes dos campos do tipo especificado.
+     * @param returnType o tipo de objeto que será retornado
+     * @return um array de strings contendo os nomes dos campos do tipo especificado
+     */
+    private static String[] getReturnTypeFields(Class<?> returnType) {
+        // Obtém os nomes dos campos do tipo especificado
+        // Isso é usado para mapear os resultados da consulta para os campos do objeto
+        Field[] fields = returnType.getDeclaredFields();
+        String[] fieldNames = new String[fields.length];
+        for (int i = 0; i < fields.length; i++) {
+            fieldNames[i] = fields[i].getName();
+        }
+        return fieldNames;
+    }
+
+    /**
+     * Busca quais campos existem no ResultSet e no tipo especificado.
+     * Isso é usado para garantir que apenas os campos que existem no ResultSet e no tipo especificado sejam mapeados.
+     * Isso é importante para evitar erros de reflexão ao tentar acessar campos que não existem no ResultSet ou no tipo especificado.
+     * @param returnType o tipo de objeto que será retornado
+     * @param resultSetMetadata os metadados do ResultSet
+     * @return um array de strings contendo os nomes dos campos que existem no ResultSet e no tipo especificado
+     * @throws SQLException
+     */
+    private static String[] getResultSetAllowedFields(Class<?> returnType, ResultSetMetaData resultSetMetadata) throws SQLException {
+        // busca quais campos existem do ResultSet
+        String[] returnTypeFields = getReturnTypeFields(returnType);
+        var columnCount = resultSetMetadata.getColumnCount();
+        List<String> columnNamesDict = new java.util.ArrayList<>();
+        for (int i = 0; i < columnCount; i++) {
+            if(Arrays.stream(returnTypeFields).anyMatch(resultSetMetadata.getColumnName(i + 1)::equals))
+            {
+                columnNamesDict.add(resultSetMetadata.getColumnName(i + 1));
+            }
+        }
+
+        return columnNamesDict.toArray(new String[0]);
+    }
+
+
+    /**
      * Executa uma consulta SQL e retorna uma lista de objetos do tipo especificado.
      * O método utiliza reflexão para mapear os resultados da consulta para instâncias do tipo especificado.
      * @param query a consulta SQL a ser executada
@@ -46,6 +93,7 @@ public final class DatabaseConnection {
 
         // inicializa a conexão como null
         Connection conn = null;
+
         // lista para armazenar os resultados
         List<T> results = new java.util.ArrayList<>();
 
@@ -72,24 +120,45 @@ public final class DatabaseConnection {
             // executa a consulta e obtém o resultado em um ResultSet
             var resultSet = stmt.executeQuery();
 
-            // itera sobre o ResultSet e cria instâncias do tipo especificado
-            // para cada linha retornada, cria um novo objeto do tipo T
-            // usa reflexão para definir os valores dos campos do objeto com os dados do ResultSet
-            // os campos do objeto devem ter os mesmos nomes dos colunas retornadas pela consulta
-            // se não houver resultados, retorna uma lista vazia
-            while (resultSet.next()) {
-                T instance = returnType.getDeclaredConstructor().newInstance();
-                for (var field : returnType.getDeclaredFields()) {
-                    field.setAccessible(true);
-                    field.set(instance, resultSet.getObject(field.getName()));
-                }
-                results.add(instance);
+            // busca quais campos existem em comum entre o ResultSet e o tipo especificado
+            String[] columnNames = getResultSetAllowedFields(returnType, resultSet.getMetaData());
+
+            // cria um hashmap para mapear os nomes das colunas do ResultSet para seus índices
+            // isso é útil para acessar os valores do ResultSet de forma eficiente
+            // o hashmap é usado para evitar a necessidade de iterar sobre os nomes das colunas
+            // a cada vez que um valor é acessado, melhorando o desempenho
+            Map<String, Integer> columnNamesMap = new HashMap<>();
+            for (String column : columnNames) {
+                columnNamesMap.put(column, resultSet.findColumn(column));
             }
+
+            // itera pelos valores do ResultSet
+            while (resultSet.next()) {
+                // para cada linha do ResultSet, cria uma nova instância do tipo especificado
+                var instance = returnType.getDeclaredConstructor().newInstance();
+
+                // itera pelos campos em comum entre o ResultSet e o tipo especificado
+                for (String fieldName : columnNamesMap.keySet()) {
+                    // usa reflexão para acessar o campo correspondente no objeto
+                    var field = returnType.getDeclaredField(fieldName);
+                    // define o campo como acessível, mesmo que seja privado
+                    // isso é necessário para poder atribuir valores a campos privados
+                    field.setAccessible(true);
+                    // atribui o valor do ResultSet ao campo do objeto
+                    // usa o método getObject do ResultSet para obter o valor da coluna correspondente
+                    // o método getObject permite obter o valor de qualquer tipo de coluna
+                    // e converte automaticamente para o tipo do campo do objeto do campo
+                    field.set(instance, resultSet.getObject(columnNamesMap.get(fieldName)));
+                }
+
+                results.add(instance);  
+            }
+
             return results;
             
         } catch (Exception e) {
-            // captura qualquer exceção que ocorra durante a execução da consulta
-            // e imprime o stack trace para depuração
+            // captura exceções específicas de SQL
+            // isso é útil para identificar problemas com a consulta ou com a conexão
             e.printStackTrace();
         } finally {
             // garante que a conexão seja fechada após o uso
@@ -109,20 +178,21 @@ public final class DatabaseConnection {
         return results;
     }
 
+
     /**
      * @param query a consulta SQL a ser executada
-     * @param returnType o tipo de objeto que será retornado
+     * @param typeConstructor o tipo de objeto que será retornado
      * @param params os parâmetros a serem passados para a consulta (deve corresponder à ordem dos placeholders na consulta)
      * @return um objeto do tipo especificado ou null se não houver resultados
      */
-    public static <T> T runQuery(String query, Class<T> returnType, Object... params) {
+    public static <T> T runQuery(String query, Class<T> typeConstructor, Object... params) {
         // T representa o tipo genérico do objeto que será retornado
 
         // chama o método runQueryForList para obter uma lista de resultados
         // e retorna o primeiro elemento da lista ou null se a lista estiver vazia
         // isso é útil quando se espera apenas um único resultado da consulta
         // por exemplo, ao buscar um único registro pelo ID
-        return runQueryForList(query, returnType, params).stream().findFirst().orElse(null);
+        return runQueryForList(query, typeConstructor, params).stream().findFirst().orElse(null);
     }
 
     /**
