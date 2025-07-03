@@ -1,0 +1,13 @@
+services:
+  postgres:
+    image: postgres:14.18-bookworm
+    environment:
+      POSTGRES_PASSWORD: "Postgres2022!"
+    ports:
+      - "5432:5432/tcp"
+      - "5432:5432/udp"
+
+  adminer:
+    image: adminer:5-standalone
+    ports:
+      - "8081:8080"
