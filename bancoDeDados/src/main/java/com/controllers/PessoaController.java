@@ -5,7 +5,6 @@ import java.util.List;
 import com.dto.PessoaDTO;
 import com.models.PessoaModel;
 
-// 
 public final class PessoaController {
 
     public static List<PessoaDTO> getPessoasAsync() {
